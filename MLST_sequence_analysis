@@ -1,0 +1,160 @@
+The below commands were used in the analysis of RNA sequences obtained from the PCR amplicons (MLST) of Eimeria genes.
+Received one folder with the sequences for the genes- hsp and rcc for a total of 58 samples (1 blank)
+Seperated the sequences into 2 folders- one with seqs for hsp and one with sequences for rcc, and each sample has a subdirectory with forward and reverse reads.
+Created manifest files for each gene and to process them as SE and PE reads- hsp_PE, hsp_SE, rcc_PE, and rcc_SE.
+Imported both folders and manifest files into hpc and ran the following commands.
+The below commands were run for each of hsp_PE, hsp_SE, rcc_PE, and rcc_SE.
+
+#For PE analysis
+qiime tools import \
+--type 'SampleData[PairedEndSequencesWithQuality]' \
+--input-path manifest_hsp_PE.txt \
+--output-path demux_hsp_PE.qza \
+--input-format PairedEndFastqManifestPhred33V2
+
+#For SE analysis
+qiime tools import \
+  --type 'SampleData[SequencesWithQuality]' \
+  --input-path manifest_hsp_SE.txt \
+  --output-path demux_hsp_SE.qza \
+  --input-format SingleEndFastqManifestPhred33V2
+
+#Visualization of demux.qza files to see the number of sequences and assess the quality of the reads for the filtering step. 
+
+qiime demux summarize \
+  --i-data demux_rcc_PE.qza \
+  --o-visualization demux_rcc_PE.qzv
+
+qiime demux summarize \
+  --i-data demux_rcc_SE.qza \
+  --o-visualization demux_rcc_SE.qzv
+
+#Based on the quality parameters, we decided not to truncate the reads. So we only trimmed the primers. 42 indicates the length of the primer.
+qiime dada2 denoise-paired \
+  --i-demultiplexed-seqs demux_rcc_PE.qza \
+  --p-trim-left-f 42 \
+  --p-trim-left-r 42 \
+  --p-trunc-len-f 0 \
+  --p-trunc-len-r 0 \
+  --o-table table_rcc_PE.qza \
+  --o-representative-sequences rep-seqs_rcc_PE.qza \
+  --o-denoising-stats stats_rcc_PE.qza
+
+#For SE sequences, since we are only trimming forward primer, remove the reverse trim.
+qiime dada2 denoise-single \
+  --i-demultiplexed-seqs demux_rcc_SE.qza \
+  --p-trim-left 42 \
+  --p-trunc-len 0 \
+  --o-table table_rcc_SE.qza \
+  --o-representative-sequences rep-seqs_rcc_SE.qza \
+  --o-denoising-stats stats_rcc_SE.qza
+
+# Visualize the feature table
+qiime feature-table summarize \
+  --i-table table_rcc_SE.qza \
+  --o-visualization table_rcc_SE.qzv
+
+# Visualize the denoising stats
+qiime metadata tabulate \
+  --m-input-file stats_rcc_SE.qza \
+  --o-visualization stats_rcc_SE.qzv
+
+# Visualize the representative sequences
+qiime feature-table tabulate-seqs \
+  --i-data rep-seqs_rcc_SE.qza \
+  --o-visualization rep-seqs_rcc_SE.qzv
+
+#Since the number of seqs in the rep-seqs files was large for manual blasting, I clustered them de-novo, which will bring the number of sequences down.
+qiime vsearch cluster-features-de-novo \
+  --i-table table_hsp_SE.qza \
+  --i-sequences rep-seqs_hsp_SE.qza \
+  --p-perc-identity 0.97 \
+  --o-clustered-table table-dn-97-hsp-SE.qza \
+  --o-clustered-sequences rep-seqs-dn-97-hsp-SE.qza
+
+# Visualize the feature table from the clustered seqs
+qiime feature-table summarize \
+  --i-table table-dn-97-hsp-SE.qza \
+  --o-visualization table-dn-97-hsp-SE.qzv
+
+# Visualize the representative sequences from the cluster data
+qiime feature-table tabulate-seqs \
+  --i-data rep-seqs-dn-97-hsp-SE.qza \
+  --o-visualization rep-seqs-dn-97-hsp-SE.qzv
+
+#Convert the clustered seqs into.fasta format for blasting.
+qiime tools export \
+  --input-path rep-seqs-dn-97-hsp-SE.qza \
+  --output-path rep-seqs-dn-97-hsp-SE-export
+mv rep-seqs-dn-97-hsp-SE-export/dna-sequences.fasta rep-seqs-dn-97-hsp-SE.fasta
+
+qiime tools export \
+  --input-path rep-seqs-dn-97-rcc-SE.qza \
+  --output-path rep-seqs-dn-97-rcc-SE-export
+mv rep-seqs-dn-97-rcc-SE-export/dna-sequences.fasta rep-seqs-dn-97-rcc-SE.fasta
+
+#the sequences were blasted against the NCBI database for the query "Eimeria [ORGN]"
+blastn \
+  -query rep-seqs-dn-97-hsp-SE.fasta \
+  -db nt \
+  -remote \
+  -entrez_query "Eimeria [ORGN]" \
+  -outfmt "6 qseqid sseqid stitle pident qcovs evalue" \
+  -max_target_seqs 10 \
+  -out blast_results_dn_97_hsp_SE.tsv
+
+#Add headers to the resulting table.
+# Export to BIOM format
+qiime tools export \
+  --input-path table-dn-97-hsp-SE.qza \
+  --output-path exported-table
+
+# Convert BIOM to TSV
+biom convert \
+  -i exported-table/feature-table.biom \
+  -o feature-table-dn-97-hsp-SE.tsv \
+  --to-tsv
+
+qiime tools export \
+  --input-path rep-seqs_rcc_SE.qza \
+  --output-path rep-seqs_rcc_SE-export
+mv rep-seqs_rcc_SE-export/dna-sequences.fasta rep-seqs-rcc-SE.fasta
+
+#Now, we need to covert the rep-seq.qza files to .fasta files to BLAST them against queries against NCBI database.
+qiime tools export \
+  --input-path rep-seqs_hsp_SE.qza \
+  --output-path rep-seqs_hsp_SE-export
+mv rep-seqs_hsp_SE-export/dna-sequences.fasta rep-seqs_hsp_SE.fasta
+
+#BLAST rep-seqs (unclustered) against NCBI database
+blastn \
+  -query rep-seqs-rcc-SE.fasta \
+  -db nt \
+  -remote \
+  -entrez_query "Eimeria [ORGN]" \
+  -outfmt "6 qseqid sseqid stitle pident qcovs evalue" \
+  -max_target_seqs 10 \
+  -out blast_results_rcc_SE.tsv
+
+# Export to BIOM format
+qiime tools export \
+  --input-path table_rcc_SE.qza \
+  --output-path exported-table
+
+# Convert BIOM to TSV
+biom convert \
+  -i exported-table/feature-table.biom \
+  -o feature-table-rcc-SE.tsv \
+  --to-tsv
+
+#To combine the data from the BLAST output and feature table, use the below command. It inserts the BLAST results/ decription column into the feature table, after OTU ID.
+
+awk 'BEGIN {FS=OFS="\t"} 
+     # Skip feature file header and map Feature ID → Description
+     NR==FNR && FNR==1 {next} 
+     NR==FNR {blast[$1]=$3; next} 
+     # Process OTU table header: insert "Description" after "#OTU ID"
+     FNR==1 {print $1 OFS "Description" OFS substr($0, length($1)+2); next} 
+     # For OTU rows: insert description or "NA" if missing
+     {print $1 OFS (blast[$1] ? blast[$1] : "NA") OFS substr($0, length($1)+2)}' \
+     feature-rcc-SE.txt OTU-rcc-SE.txt > merged_rcc_table.txt
