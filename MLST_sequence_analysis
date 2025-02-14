@@ -5,6 +5,52 @@ Created manifest files for each gene and to process them as SE and PE reads- hsp
 Imported both folders and manifest files into hpc and ran the following commands.
 The below commands were run for each of hsp_PE, hsp_SE, rcc_PE, and rcc_SE.
 
+#activate qiime2 envt
+module load qiime2/2024.10
+source activate qiime2-amplicon-2024.10
+
+#copy necessary folders/files
+
+#create manifest files- for forward and reverse reads seperately- for SE analysis
+nano manifest.py
+
+import os
+
+def create_manifest(folder_path, output_file_forward, output_file_reverse):
+    with open(output_file_forward, 'w') as manifest_forward, open(output_file_reverse, 'w') as manifest_reverse:
+        # Write headers for QIIME 2-compatible manifest files
+        manifest_forward.write("sample-id,absolute-filepath\n")
+        manifest_reverse.write("sample-id,absolute-filepath\n")
+        
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file.endswith("_R1_001.fastq.gz"):
+                    sample_id = file.split('_')[0]
+                    absolute_filepath = os.path.join(root, file)
+                    manifest_forward.write(f"{sample_id},{absolute_filepath}\n")
+                elif file.endswith("_R2_001.fastq.gz"):
+                    sample_id = file.split('_')[0]
+                    absolute_filepath = os.path.join(root, file)
+                    manifest_reverse.write(f"{sample_id},{absolute_filepath}\n")
+
+# Define the base directory and folders
+base_dir = "/scratch/aubsxf001/data/SE_Miseq"
+folders = ["Miseq_hsp", "Miseq_rcc", "dnaj"]
+
+# Create manifest files for each folder
+for folder in folders:
+    folder_path = os.path.join(base_dir, folder)
+    output_file_forward = os.path.join(base_dir, f"{folder}_forward_manifest.csv")
+    output_file_reverse = os.path.join(base_dir, f"{folder}_reverse_manifest.csv")
+    create_manifest(folder_path, output_file_forward, output_file_reverse)
+    print(f"Manifest files created for {folder}:")
+    print(f"  Forward reads: {output_file_forward}")
+    print(f"  Reverse reads: {output_file_reverse}")
+
+#after creating the .py file, run it
+python manifest.py
+
+
 #For PE analysis
 qiime tools import \
 --type 'SampleData[PairedEndSequencesWithQuality]' \
@@ -135,6 +181,16 @@ blastn \
   -outfmt "6 qseqid sseqid stitle pident qcovs evalue" \
   -max_target_seqs 10 \
   -out blast_results_rcc_SE.tsv
+
+#If no results for the entrez query, run the below commad
+blastn \
+  -query rep-seqs_hsp_trim.fasta \
+  -db nt \
+  -remote \
+  -outfmt "6 qseqid sseqid stitle pident qcovs evalue" \
+  -max_target_seqs 10 \
+  -out blast-results-hsp-PE.tsv
+
 
 # Export to BIOM format
 qiime tools export \
