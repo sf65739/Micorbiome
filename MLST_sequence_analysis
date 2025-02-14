@@ -1,8 +1,5 @@
 The below commands were used in the analysis of RNA sequences obtained from the PCR amplicons (MLST) of Eimeria genes.
-Received one folder with the sequences for the genes- hsp and rcc for a total of 58 samples (1 blank)
-Seperated the sequences into 2 folders- one with seqs for hsp and one with sequences for rcc, and each sample has a subdirectory with forward and reverse reads.
-Created manifest files for each gene and to process them as SE and PE reads- hsp_PE, hsp_SE, rcc_PE, and rcc_SE.
-Imported both folders and manifest files into hpc and ran the following commands.
+The objective was to identify Eimeria maxima target genes and any variants of those genes to differentiate strains.
 The below commands were run for each of hsp_PE, hsp_SE, rcc_PE, and rcc_SE.
 
 #activate qiime2 envt
